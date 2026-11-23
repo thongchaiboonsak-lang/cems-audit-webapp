@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Eraser, PenTool } from 'lucide-react';
+import { CheckCircle2, Eraser, PenTool } from 'lucide-react';
 
 interface SignaturePadProps {
   label: string;
@@ -85,22 +85,49 @@ export function SignaturePad({ label, dataUrl, onChange }: SignaturePadProps) {
   };
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-          <PenTool className="w-3.5 h-3.5 text-blue-600" />
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+          <span className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 inline-flex items-center justify-center border border-blue-100">
+            <PenTool className="w-3.5 h-3.5" />
+          </span>
           {label}
         </span>
-        <button
-          type="button"
-          onClick={handleClear}
-          className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-rose-600 transition cursor-pointer"
-        >
-          <Eraser className="w-3.5 h-3.5" />
-          ล้างลายเซ็น
-        </button>
+        <div className="flex items-center gap-2">
+          {dataUrl && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+              <CheckCircle2 className="w-3 h-3" />
+              ลงนามแล้ว
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleClear}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+          >
+            <Eraser className="w-3.5 h-3.5" />
+            ล้าง
+          </button>
+        </div>
       </div>
-      <div className="relative rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden">
+
+      <div
+        className={`relative rounded-2xl border-2 border-dashed bg-white overflow-hidden transition-all duration-150 ${
+          drawing
+            ? 'border-blue-500 ring-4 ring-blue-500/15 shadow-sm'
+            : dataUrl
+              ? 'border-emerald-300/90'
+              : 'border-slate-300 hover:border-slate-400'
+        }`}
+      >
+        {/* Subtle signature baseline */}
+        <div className="pointer-events-none absolute left-5 right-5 bottom-6 border-b border-slate-200/90 flex items-end justify-between">
+          <span className="text-[11px] font-bold text-slate-300 -mb-0.5 select-none">✕</span>
+          <span className="text-[9px] uppercase tracking-wider text-slate-300 pb-0.5 select-none">
+            Signature Line
+          </span>
+        </div>
+
         <canvas
           ref={canvasRef}
           width={520}
@@ -109,11 +136,14 @@ export function SignaturePad({ label, dataUrl, onChange }: SignaturePadProps) {
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="w-full h-36 touch-none cursor-crosshair block"
+          className="relative z-10 w-full h-36 touch-none cursor-crosshair block"
         />
+
         {!dataUrl && !drawing && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-slate-400">
-            ใช้นิ้วหรือเมาส์เซ็นชื่อในกรอบนี้
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span className="px-3 py-1 rounded-full bg-slate-100/90 text-xs font-medium text-slate-400">
+              ใช้นิ้วหรือเมาส์เซ็นชื่อในกรอบนี้
+            </span>
           </div>
         )}
       </div>

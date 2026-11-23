@@ -75,21 +75,21 @@ export function PdfReportPreview({
   };
 
   return (
-    <div className="min-h-screen bg-slate-200/80 pb-12">
+    <div className="min-h-screen desk-dot-pattern pb-14">
       {/* Top Action Bar (Hidden in PDF Print) */}
-      <div className="no-print sticky top-0 z-40 bg-slate-900 text-white border-b border-slate-700 shadow-md">
+      <div className="no-print sticky top-0 z-40 bg-slate-950/90 backdrop-blur-xl text-white border-b border-white/10 shadow-lg">
         <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs sm:text-sm font-medium transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-slate-100 text-xs sm:text-sm font-semibold transition cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               กลับไปแก้ไข
             </button>
             <div className="hidden sm:block">
-              <div className="text-sm font-bold">ตัวอย่างรายงาน PDF (ขนาด A4)</div>
+              <div className="text-sm font-bold tracking-tight">ตัวอย่างรายงาน PDF (ขนาด A4)</div>
               <div className="text-[11px] text-slate-400">
                 กดปุ่ม &ldquo;พิมพ์ / บันทึกเป็น PDF&rdquo; แล้วเลือกปลายทางเป็น Save as PDF เพื่อไฟล์ภาษาไทยคมชัด 100%
               </div>
@@ -100,9 +100,9 @@ export function PdfReportPreview({
             <button
               type="button"
               onClick={onDownloadCsv}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-semibold transition cursor-pointer"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-4 h-4 text-sky-300" />
               ส่งออก CSV
             </button>
 
@@ -110,10 +110,10 @@ export function PdfReportPreview({
               type="button"
               disabled={syncing}
               onClick={onSyncGoogleSheet}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
                 hasGoogleSheetUrl
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                  : 'bg-slate-700 hover:bg-slate-600 text-slate-200'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-600/25'
+                  : 'bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10'
               }`}
             >
               <CloudUpload className="w-4 h-4" />
@@ -123,7 +123,7 @@ export function PdfReportPreview({
             <button
               type="button"
               onClick={handlePrintPdf}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold shadow-lg transition cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-blue-600/30 transition active:scale-[0.98] cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               พิมพ์ / บันทึกเป็น PDF ทันที
@@ -133,7 +133,7 @@ export function PdfReportPreview({
       </div>
 
       {/* A4 Paper Report Container */}
-      <div className="print-container font-report max-w-[210mm] mx-auto my-6 bg-white shadow-xl border border-slate-300 px-8 py-8 sm:px-10 sm:py-10 text-slate-900">
+      <div className="print-container font-report max-w-[210mm] mx-auto my-7 bg-white rounded-sm shadow-[0_20px_60px_-15px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/10 px-8 py-8 sm:px-10 sm:py-10 text-slate-900">
         {/* Document Header */}
         <div className="border-b-2 border-slate-900 pb-4 mb-5 flex flex-col sm:flex-row justify-between items-start gap-4">
           <div className="flex items-start gap-3.5">
