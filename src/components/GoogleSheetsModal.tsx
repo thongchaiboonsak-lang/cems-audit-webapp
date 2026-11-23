@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Check,
   CloudUpload,
@@ -44,6 +44,17 @@ export function GoogleSheetsModal({
   const [testing, setTesting] = useState(false);
   const [syncingMaster, setSyncingMaster] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setWebAppUrl(config.webAppUrl);
+      setAutoWatermark(config.autoWatermark);
+      setUploadPhotosToDrive(config.uploadPhotosToDrive);
+      setDefaultCompanyName(config.defaultCompanyName);
+      setCompanyLogoDataUrl(config.companyLogoDataUrl || '');
+      setStatusMsg(null);
+    }
+  }, [open, config]);
 
   if (!open) return null;
 

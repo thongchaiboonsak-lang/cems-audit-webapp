@@ -60,6 +60,9 @@ import {
 const STORAGE_MASTER_KEY = 'cems_checklist_master_v3';
 const STORAGE_CONFIG_KEY = 'cems_gsheet_config_v1';
 
+const DEFAULT_GOOGLE_SHEET_WEBAPP_URL =
+  'https://script.google.com/macros/s/AKfycbyJV_VpRim_yygWfC4-fBcHxCncCDAParyghgufWAKltinKKL9nO2YUgj896ilo-lsO/exec';
+
 type AppView = 'DASHBOARD' | 'WORKSPACE' | 'PDF_PREVIEW';
 type WorkspaceTab = 'SETUP' | 'STAGE_1' | 'STAGE_2' | 'STAGE_3' | 'STAGE_4' | 'SIGNOFF';
 type ItemFilter = 'ALL' | 'PENDING' | 'FAIL' | 'HAS_PHOTO';
@@ -85,14 +88,16 @@ export default function App() {
   const [masterItems, setMasterItems] = useState<ChecklistItemDef[]>(() =>
     loadFromStorage<ChecklistItemDef[]>(STORAGE_MASTER_KEY, STANDARD_CHECKLIST)
   );
-  const [config, setConfig] = useState<GoogleSheetConfig>(() =>
-    loadFromStorage<GoogleSheetConfig>(STORAGE_CONFIG_KEY, {
-      webAppUrl: '',
-      autoWatermark: true,
-      uploadPhotosToDrive: true,
-      defaultCompanyName: 'บริษัท ตัวอย่าง อินดัสเทรียล จำกัด (มหาชน)',
-    })
-  );
+  const [config, setConfig] = useState<GoogleSheetConfig>(() => {
+    const saved = loadFromStorage<Partial<GoogleSheetConfig>>(STORAGE_CONFIG_KEY, {});
+    return {
+      webAppUrl: saved.webAppUrl?.trim() ? saved.webAppUrl : DEFAULT_GOOGLE_SHEET_WEBAPP_URL,
+      autoWatermark: saved.autoWatermark ?? true,
+      uploadPhotosToDrive: saved.uploadPhotosToDrive ?? true,
+      defaultCompanyName: saved.defaultCompanyName || 'บริษัท ตัวอย่าง อินดัสเทรียล จำกัด (มหาชน)',
+      companyLogoDataUrl: saved.companyLogoDataUrl,
+    };
+  });
 
   const [view, setView] = useState<AppView>('DASHBOARD');
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
