@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   ArrowLeft,
@@ -8,12 +8,13 @@ import {
   ClipboardCheck,
   Clock,
   CloudUpload,
-  Download,
   ExternalLink,
   FileSpreadsheet,
   FileText,
   FolderOpen,
   Info,
+  Lock,
+  LogOut,
   PenTool,
   Plus,
   Settings,
@@ -21,13 +22,13 @@ import {
   Sparkles,
   Trash2,
   Truck,
-  Upload,
   Users,
   Wifi,
   WifiOff,
   X,
   XCircle,
 } from 'lucide-react';
+import { AdminLoginModal } from './components/AdminLoginModal';
 import { ChecklistCard } from './components/ChecklistCard';
 import { ChecklistMasterModal } from './components/ChecklistMasterModal';
 import { GoogleSheetsModal } from './components/GoogleSheetsModal';
@@ -51,14 +52,11 @@ import type {
   StageNumber,
 } from './types';
 import { loadRecordsFromDb, saveAllRecordsToDb } from './utils/db';
-import {
-  downloadAuditCsv,
-  downloadRecordBackupJson,
-  syncRecordToGoogleSheet,
-} from './utils/googleSheets';
+import { downloadAuditCsv, syncRecordToGoogleSheet } from './utils/googleSheets';
 
 const STORAGE_MASTER_KEY = 'cems_checklist_master_v3';
 const STORAGE_CONFIG_KEY = 'cems_gsheet_config_v1';
+const SESSION_ADMIN_KEY = 'cems_admin_authenticated_v1';
 
 const DEFAULT_GOOGLE_SHEET_WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbyJV_VpRim_yygWfC4-fBcHxCncCDAParyghgufWAKltinKKL9nO2YUgj896ilo-lsO/exec';
@@ -78,12 +76,19 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 }
 
 export default function App() {
-  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [records, setRecords] = useState<AuditRecord[]>([]);
   const [dbLoaded, setDbLoaded] = useState(false);
   const [isOnline, setIsOnline] = useState(() =>
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
+  const [isAdmin, setIsAdmin] = useState(() => {
+    try {
+      return sessionStorage.getItem(SESSION_ADMIN_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
 
   const [masterItems, setMasterItems] = useState<ChecklistItemDef[]>(() =>
     loadFromStorage<ChecklistItemDef[]>(STORAGE_MASTER_KEY, STANDARD_CHECKLIST)
@@ -241,32 +246,27 @@ export default function App() {
     }
   };
 
-  const handleImportBackupJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result)) as AuditRecord;
-        if (!parsed || !parsed.metadata || !parsed.responses) {
-          throw new Error('โครงสร้างไฟล์ไม่ถูกต้อง');
-        }
-        const imported: AuditRecord = {
-          ...parsed,
-          id: `imp-${Date.now()}`,
-          updatedAt: new Date().toISOString(),
-        };
-        setRecords((prev) => [imported, ...prev]);
-        setActiveRecordId(imported.id);
-        setActiveTab('STAGE_1');
-        setView('WORKSPACE');
-        showToast('success', `นำเข้าใบงาน "${imported.metadata.docNumber}" เรียบร้อยแล้ว!`);
-      } catch {
-        showToast('error', 'ไม่สามารถนำเข้าไฟล์ได้ กรุณาเลือกไฟล์สำรอง .json ที่ส่งออกจากระบบนี้');
-      }
-    };
-    reader.readAsText(file);
-    if (importInputRef.current) importInputRef.current.value = '';
+  const handleAdminLoginSuccess = () => {
+    setIsAdmin(true);
+    try {
+      sessionStorage.setItem(SESSION_ADMIN_KEY, '1');
+    } catch {
+      // ignore sessionStorage error
+    }
+    setShowAdminLoginModal(false);
+    showToast('success', 'เข้าสู่โหมดผู้ดูแลระบบ (Admin) เรียบร้อยแล้ว');
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdmin(false);
+    try {
+      sessionStorage.removeItem(SESSION_ADMIN_KEY);
+    } catch {
+      // ignore sessionStorage error
+    }
+    setShowSettingsModal(false);
+    setShowMasterModal(false);
+    showToast('info', 'ออกจากโหมดผู้ดูแลระบบแล้ว');
   };
 
   const computeRecordStats = (rec: AuditRecord) => {
@@ -302,7 +302,7 @@ export default function App() {
           onDownloadCsv={() => downloadAuditCsv(activeRecord, applicableItems)}
         />
         <GoogleSheetsModal
-          open={showSettingsModal}
+          open={isAdmin && showSettingsModal}
           config={config}
           checklistItems={masterItems}
           onSaveConfig={setConfig}
@@ -361,27 +361,51 @@ export default function App() {
               {isOnline ? 'Online' : 'Offline Safe'}
             </span>
 
-            <button
-              type="button"
-              onClick={() => setShowMasterModal(true)}
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
-            >
-              <BookMarked className="w-3.5 h-3.5 text-sky-400" />
-              ฐานข้อมูล Checklist ({masterItems.length})
-            </button>
+            {isAdmin ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowMasterModal(true)}
+                  className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
+                >
+                  <BookMarked className="w-3.5 h-3.5 text-sky-400" />
+                  ฐานข้อมูล Checklist ({masterItems.length})
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setShowSettingsModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
-              title="ตั้งค่าและเชื่อมต่อ Google Sheet"
-            >
-              <Settings className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Google Sheet</span>
-              {config.webAppUrl.trim() && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400" title="เชื่อมต่อแล้ว" />
-              )}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
+                  title="ตั้งค่าและเชื่อมต่อ Google Sheet"
+                >
+                  <Settings className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden sm:inline">Google Sheet</span>
+                  {config.webAppUrl.trim() && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" title="เชื่อมต่อแล้ว" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAdminLogout}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold transition cursor-pointer"
+                  title="ออกจากโหมดผู้ดูแลระบบ"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Admin</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAdminLoginModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition cursor-pointer"
+                title="เข้าสู่ระบบผู้ดูแลเพื่อจัดการฐานข้อมูล"
+              >
+                <Lock className="w-3.5 h-3.5 text-sky-400" />
+                <span>ผู้ดูแลระบบ</span>
+              </button>
+            )}
 
             {view === 'WORKSPACE' && activeRecord && (
               <button
@@ -442,69 +466,111 @@ export default function App() {
             </div>
           </section>
 
-          {/* Quick Utility Cards */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              type="button"
-              onClick={handleLoadDemoJob}
-              className="text-left p-5 rounded-2xl bg-white border border-blue-200 hover:border-blue-400 hover:shadow-md transition flex items-start gap-4 cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="font-bold text-slate-900 text-sm">ทดลองใช้ด้วยข้อมูลตัวอย่าง (Demo)</div>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  โหลดใบงานตัวอย่างที่มีผลตรวจและรูปถ่ายหลักฐานครบ เพื่อลองดู Tooltip และทดลองสร้างไฟล์ PDF ทันที
-                </p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowMasterModal(true)}
-              className="text-left p-5 rounded-2xl bg-white border border-slate-200 hover:border-sky-400 hover:shadow-md transition flex items-start gap-4 cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center flex-shrink-0">
-                <BookMarked className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="font-bold text-slate-900 text-sm">
-                  ฐานข้อมูล Checklist มาตรฐาน ({masterItems.length} ข้อ)
+          {/* Admin-Only Management Cards */}
+          {isAdmin ? (
+            <section className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full inline-flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-600" />
+                  ส่วนจัดการข้อมูลผู้ดูแลระบบ (Admin Mode)
                 </div>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  ดูหรือเพิ่มหัวข้อตรวจเช็ค แก้ไขคำอธิบาย/เกณฑ์ผ่าน และส่งออกไฟล์ Master CSV เพื่อนำไปเก็บเป็นฐานข้อมูลบริษัท
-                </p>
+                <button
+                  type="button"
+                  onClick={handleAdminLogout}
+                  className="text-xs font-semibold text-slate-500 hover:text-rose-600 inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  ล็อก / ออกจากระบบผู้ดูแล
+                </button>
               </div>
-            </button>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button
+                  type="button"
+                  onClick={handleLoadDemoJob}
+                  className="text-left p-5 rounded-2xl bg-white border border-blue-200 hover:border-blue-400 hover:shadow-md transition flex items-start gap-4 cursor-pointer"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">ทดลองใช้ด้วยข้อมูลตัวอย่าง (Demo)</div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      โหลดใบงานตัวอย่างที่มีผลตรวจและรูปถ่ายหลักฐานครบ เพื่อลองดู Tooltip และทดลองสร้างไฟล์ PDF ทันที
+                    </p>
+                  </div>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setShowSettingsModal(true)}
-              className="text-left p-5 rounded-2xl bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md transition flex items-start gap-4 cursor-pointer"
-            >
-              <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
-                <FileSpreadsheet className="w-5 h-5" />
+                <button
+                  type="button"
+                  onClick={() => setShowMasterModal(true)}
+                  className="text-left p-5 rounded-2xl bg-white border border-slate-200 hover:border-sky-400 hover:shadow-md transition flex items-start gap-4 cursor-pointer"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center flex-shrink-0">
+                    <BookMarked className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">
+                      ฐานข้อมูล Checklist มาตรฐาน ({masterItems.length} ข้อ)
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      ดูหรือเพิ่มหัวข้อตรวจเช็ค แก้ไขคำอธิบาย/เกณฑ์ผ่าน และส่งออกไฟล์ Master CSV เพื่อนำไปเก็บเป็นฐานข้อมูลบริษัท
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsModal(true)}
+                  className="text-left p-5 rounded-2xl bg-white border border-slate-200 hover:border-emerald-400 hover:shadow-md transition flex items-start gap-4 cursor-pointer"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      เชื่อมต่อ Google Sheet
+                      {config.webAppUrl.trim() ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                          เชื่อมต่อแล้ว
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          ยังไม่ตั้งค่า
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      วางลิงก์ Google Apps Script เพื่อซิงค์ประวัติการตรวจ ผลรายข้อ และฐานข้อมูล Checklist ลง Google Sheet
+                    </p>
+                  </div>
+                </button>
               </div>
-              <div>
-                <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  เชื่อมต่อ Google Sheet
-                  {config.webAppUrl.trim() ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                      เชื่อมต่อแล้ว
-                    </span>
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                      ยังไม่ตั้งค่า
-                    </span>
-                  )}
+            </section>
+          ) : (
+            <section className="rounded-2xl bg-white border border-slate-200 px-4 py-3.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center flex-shrink-0">
+                  <Lock className="w-4 h-4" />
                 </div>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  วางลิงก์ Google Apps Script เพื่อซิงค์ประวัติการตรวจ ผลรายข้อ และฐานข้อมูล Checklist ลง Google Sheet
-                </p>
+                <div>
+                  <div className="text-xs sm:text-sm font-bold text-slate-800">
+                    ส่วนจัดการข้อมูลระบบ (Checklist มาตรฐาน / ตั้งค่า Google Sheet / โหมดทดลอง Demo)
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    สงวนสิทธิ์เฉพาะผู้ดูแลระบบ — กรุณาล็อกอินเพื่อเข้าจัดการข้อมูลหรือตั้งค่าการเชื่อมต่อ
+                  </div>
+                </div>
               </div>
-            </button>
-          </section>
+              <button
+                type="button"
+                onClick={() => setShowAdminLoginModal(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                เข้าสู่ระบบผู้ดูแล
+              </button>
+            </section>
+          )}
 
           {/* Saved Audit Jobs List */}
           <section className="space-y-3">
@@ -513,26 +579,9 @@ export default function App() {
                 <FolderOpen className="w-5 h-5 text-blue-600" />
                 รายการงานตรวจสอบในเครื่อง ({records.length} งาน)
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
-                  IndexedDB Offline Storage
+                  บันทึกอัตโนมัติในเครื่อง
                 </span>
               </h2>
-              <div>
-                <input
-                  ref={importInputRef}
-                  type="file"
-                  accept="application/json,.json"
-                  onChange={handleImportBackupJson}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => importInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-semibold transition cursor-pointer"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  นำเข้าไฟล์สำรอง (.json)
-                </button>
-              </div>
             </div>
 
             {records.length === 0 ? (
@@ -540,7 +589,7 @@ export default function App() {
                 <ClipboardCheck className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                 <div className="font-bold text-slate-700 text-base">ยังไม่มีรายการงานตรวจสอบ</div>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
-                  กดปุ่ม &ldquo;เริ่มงานตรวจใหม่&rdquo; ด้านบนเพื่อเริ่มควบคุมงานหน้างาน หรือกด &ldquo;ทดลองใช้ด้วยข้อมูลตัวอย่าง (Demo)&rdquo; เพื่อทดสอบระบบและการออกไฟล์ PDF ได้เลย
+                  กดปุ่ม &ldquo;เริ่มงานตรวจใหม่&rdquo; ด้านบนเพื่อเริ่มควบคุมงานตรวจสอบ CEMS หน้างานได้เลย
                 </p>
               </div>
             ) : (
@@ -1452,16 +1501,7 @@ export default function App() {
                         className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition cursor-pointer"
                       >
                         <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-                        CSV
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadRecordBackupJson(activeRecord)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition cursor-pointer"
-                        title="ดาวน์โหลดไฟล์สำรองพร้อมรูปถ่ายทั้งหมด"
-                      >
-                        <Download className="w-4 h-4 text-slate-600" />
-                        Backup JSON
+                        ดาวน์โหลด CSV
                       </button>
                       {activeRecord.driveFolderUrl && (
                         <a
@@ -1494,18 +1534,25 @@ export default function App() {
       {/* Help Guide Slide-over / Bottom Sheet */}
       <HelpGuideDrawer item={guideItem} onClose={() => setGuideItem(null)} />
 
-      {/* Google Sheets Settings Modal */}
+      {/* Admin Login Modal */}
+      <AdminLoginModal
+        open={showAdminLoginModal}
+        onSuccess={handleAdminLoginSuccess}
+        onClose={() => setShowAdminLoginModal(false)}
+      />
+
+      {/* Google Sheets Settings Modal (Admin Only) */}
       <GoogleSheetsModal
-        open={showSettingsModal}
+        open={isAdmin && showSettingsModal}
         config={config}
         checklistItems={masterItems}
         onSaveConfig={setConfig}
         onClose={() => setShowSettingsModal(false)}
       />
 
-      {/* Checklist Master Database Modal */}
+      {/* Checklist Master Database Modal (Admin Only) */}
       <ChecklistMasterModal
-        open={showMasterModal}
+        open={isAdmin && showMasterModal}
         items={masterItems}
         onSaveItems={setMasterItems}
         onResetDefault={() => setMasterItems(STANDARD_CHECKLIST)}
